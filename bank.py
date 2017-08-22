@@ -98,9 +98,18 @@ def excel_export(transactions, filename):
     ws.title = "Spending Summary"
 
     ws.append(["Category", "Total"])
-    for category in cfg.categories:
+    for category in cfg.outgoings_categories:
         ws.append([category, '=SUMPRODUCT((TransactionList!D2:D{1}="{0}")*TransactionList!C2:C{1})'.format(category, len(transactions)+20)])
-
+    # append sum of outgoings
+    ws.append(["Total Outgoings", '=SUM(B2:B{})'.format(len(cfg.outgoings_categories)+1)])
+    for category in cfg.income_categories:
+        ws.append([category, '=SUMPRODUCT((TransactionList!D2:D{1}="{0}")*TransactionList!C2:C{1})'.format(category, len(transactions)+20)])
+    # append sum of incomes
+    incomeStart = len(cfg.outgoings_categories)+3
+    incomeEnd = incomeStart + len(cfg.income_categories) - 1
+    ws.append(["Total Income", '=SUM(B{}:B{})'.format(incomeStart, incomeEnd)])
+    # append sum of both
+    ws.append(["Balance", '=B{}+B{}'.format(len(cfg.outgoings_categories)+2, incomeEnd+1)])
     ws1 = wb.create_sheet("TransactionList")
     ws1.append(['Date', 'Merchant', 'Transaction', "Category"])
     for transaction in transactions:
