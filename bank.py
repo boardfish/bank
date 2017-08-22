@@ -3,6 +3,8 @@ from dateutil import parser
 import pytz
 import config as cfg
 import csv
+from openpyxl import Workbook
+
 
 def init_monzo():
 
@@ -88,6 +90,27 @@ def beautify(transactions):
     for row in sort_chronologically(transactions):
         print("".join(str(row[key]).ljust(col_width) for key in row))
 
+def excel_export(transactions, filename):
+    wb = Workbook()
+
+    # grab the active worksheet
+    ws = wb.active
+    ws.title = "Spending Summary"
+
+    ws.append(["Category", "Total"])
+    for category in cfg.categories:
+        ws.append([category, '=SUMPRODUCT((TransactionList!D2:D{1}="{0}")*TransactionList!C2:C{1})'.format(category, len(transactions)+20)])
+
+    ws1 = wb.create_sheet("TransactionList")
+    ws1.append(['Date', 'Merchant', 'Transaction', "Category"])
+    for transaction in transactions:
+        ws1.append([transaction['date'], transaction['merchant'], transaction['transaction']])
+    # Save the file
+    wb.save(filename)
+    print("Saved. Don't forget to check cell references - it might not be perfect.")
+    import subprocess
+    subprocess.Popen(["libreoffice", filename])
+
 def total(transactions):
     sum = 0
     for row in transactions:
@@ -101,4 +124,4 @@ santanderTransactions = init_santander(cfg.santander_statement)
 monzoTransactions = parse_monzo(init_monzo())
 transactions = santanderTransactions + monzoTransactions
 # PRINT
-beautify(format_for_display(sort_chronologically(transactions)))
+excel_export(transactions, "sample.xlsx")
