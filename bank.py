@@ -55,6 +55,22 @@ def sort_chronologically(transactions):
     new_transactions = sorted(transactions, key=lambda k: k['date']) 
     return new_transactions
 
+def to_pounds(pence):
+    value = str.format('{0:.2f}',pence/100)
+    if value[0] == '-':
+        value = value[1:]
+        prefix = "-£"
+    else:
+        prefix = "+£"
+    return prefix + value
+
+def format_for_display(transactions):
+    for row in transactions:
+        row['date'] = row['date'].strftime('%d/%m/%y')
+        row['transaction'] = to_pounds(row['transaction'])
+        print(row)
+    return transactions
+
 def write_to_csv(transactions, filename):
     with open(filename, 'w', newline='') as csvfile:
         csvwriter = csv.writer(csvfile, delimiter=';',
@@ -84,8 +100,4 @@ santanderTransactions = init_santander(cfg.santander_statement)
 monzoTransactions = parse_monzo(init_monzo())
 transactions = santanderTransactions + monzoTransactions
 # PRINT
-# beautify(transactions)
-print(total(transactions))
-print('Choose a filename to write to: ')
-filename = str(input(">>> "))
-write_to_csv(sort_chronologically(transactions), filename)
+beautify(format_for_display(transactions))
