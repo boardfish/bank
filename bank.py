@@ -5,7 +5,7 @@ import config as cfg
 import csv
 import datetime
 from openpyxl.styles import colors
-from openpyxl.styles import Font, Color
+from openpyxl.styles import Font, Color, PatternFill
 from openpyxl import Workbook
 
 
@@ -66,7 +66,7 @@ def to_2sf(value):
 
 def to_pounds(pence):
     value = to_2sf(pence)
-    if value[0] == '-':
+    if str(value[0]) == '-':
         value = value[1:]
         prefix = "-£"
     else:
@@ -118,17 +118,10 @@ def excel_export(transactions, filename):
     ws.title = "Spending Summary"
 
     ws.append(["Category", "Total"])
-    header_font = Font(bold=True)
-    for row in ws.iter_rows(min_row=1, max_col=2, max_row=1):
-        for cell in row:
-            cell.font = header_font
     for category in cfg.outgoings_categories:
         ws.append([category, '=SUMPRODUCT((TransactionList!D2:D{1}="{0}")*TransactionList!C2:C{1})'.format(category, len(transactions)+20)])
     # append sum of outgoings
     ws.append(["Total Outgoings", '=SUM(B2:B{})'.format(len(cfg.outgoings_categories)+1)])
-    for row in ws.iter_rows(min_row=len(cfg.outgoings_categories)+2, max_col=1, max_row=len(cfg.outgoings_categories)+2):
-        for cell in row:
-            cell.font = header_font
     for category in cfg.income_categories:
         ws.append([category, '=SUMPRODUCT((TransactionList!D2:D{1}="{0}")*TransactionList!C2:C{1})'.format(category, len(transactions)+20)])
     # append sum of incomes
@@ -137,16 +130,42 @@ def excel_export(transactions, filename):
     ws.append(["Total Income", '=SUM(B{}:B{})'.format(incomeStart, incomeEnd)])
     # append sum of both
     ws.append(["Balance", '=B{}+B{}'.format(len(cfg.outgoings_categories)+2, incomeEnd+1)])
-    for row in ws.iter_rows(min_row=incomeEnd+1, max_col=2, max_row=incomeEnd+2):
-        for cell in row:
-            cell.font = header_font
     ws1 = wb.create_sheet("TransactionList")
     ws1.append(['Date', 'Merchant', 'Transaction', "Category"])
+    for transaction in transactions:
+        ws1.append([transaction['date'], transaction['merchant'], to_2sf(transaction['transaction'])])
+    # Formatting cells
+    # Basic styles
+    header_font = Font(bold=True)
+    redFill = PatternFill(start_color='FFFF0000',
+                          end_color='FFFF0000',
+                          fill_type='solid')
+    # Header row of spending summary
+    for row in ws.iter_rows(min_row=1, max_col=2, max_row=1):
+        for cell in row:
+            cell.style = "60 % - Accent4"
+    # Outgoing totals
+    for row in ws.iter_rows(min_row=2, max_col=2, max_row=len(cfg.outgoings_categories)+1):
+        for cell in row:
+            cell.style = "20 % - Accent2"
+    for row in ws.iter_rows(min_row=len(cfg.outgoings_categories)+2, max_col=2, max_row=len(cfg.outgoings_categories)+2):
+        for cell in row:
+            cell.style = "60 % - Accent2"
+    # Income and balance totals
+    for row in ws.iter_rows(min_row=incomeStart, max_col=2, max_row=incomeEnd):
+        for cell in row:
+            cell.style = "20 % - Accent1"
+    for row in ws.iter_rows(min_row=incomeEnd+1, max_col=2, max_row=incomeEnd+1):
+        for cell in row:
+            cell.style = "60 % - Accent1"
+    for row in ws.iter_rows(min_row=incomeEnd+2, max_col=2, max_row=incomeEnd+2):
+        for cell in row:
+            cell.style = "60 % - Accent3"
+    # Header row of transaction list
     for row in ws1.iter_rows(min_row=1, max_col=4, max_row=1):
         for cell in row:
             cell.font = header_font
-    for transaction in transactions:
-        ws1.append([transaction['date'], transaction['merchant'], to_2sf(transaction['transaction'])])
+            cell.style = "60 % - Accent1"
     excel_autofit(ws)
     excel_autofit(ws1)
     # Save the file
@@ -168,4 +187,4 @@ santanderTransactions = init_santander(cfg.santander_statement)
 monzoTransactions = parse_monzo(init_monzo())
 transactions = santanderTransactions + monzoTransactions
 # PRINT
-beautify(sort_chronologically(transactions))
+excel_export(sort_chronologically(transactions), 'sample.xlsx')
