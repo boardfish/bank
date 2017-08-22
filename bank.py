@@ -61,6 +61,25 @@ def sort_chronologically(transactions):
     transactions = sorted(transactions, key=lambda k:k['date'])
     return transactions
 
+def sort_months(transactions):
+    sorted_transactions = {}
+    for transaction in transactions:
+        # Make a list of months
+        month = str(transaction['date'].month) + '-' + str(transaction['date'].year)
+        if month in sorted_transactions:
+            sorted_transactions[month].append(transaction)
+        else:
+            sorted_transactions[month] = [transaction]
+    return sorted_transactions
+
+def total(transactions):
+    sum = 0
+    for row in transactions:
+        sum += int(row['transaction'])
+    return sum
+
+# Formatting and displaying
+
 def to_2sf(value):
     return float(str.format('{0:.2f}',value/100))
 
@@ -80,6 +99,8 @@ def format_for_display(transactions):
         print(row)
     return transactions
 
+# Exporting
+
 def write_to_csv(transactions, filename):
     with open(filename, 'w', newline='') as csvfile:
         csvwriter = csv.writer(csvfile, delimiter=';',
@@ -95,6 +116,8 @@ def beautify(transactions):
     col_width = 40
     for row in sort_chronologically(transactions):
         print("".join(str(row[key]).ljust(col_width) for key in row))
+
+# Exporting: Excel
 
 def excel_autofit(ws):
     # from https://stackoverflow.com/questions/39529662/python-automatically-adjust-width-of-an-excel-files-columns
@@ -112,11 +135,10 @@ def excel_autofit(ws):
 
 def excel_export(transactions, filename):
     wb = Workbook()
-
     # grab the active worksheet
     ws = wb.active
+    # Spending Summary
     ws.title = "Spending Summary"
-
     ws.append(["Category", "Total"])
     for category in cfg.outgoings_categories:
         ws.append([category, '=SUMPRODUCT((TransactionList!D2:D{1}="{0}")*TransactionList!C2:C{1})'.format(category, len(transactions)+20)])
@@ -130,6 +152,7 @@ def excel_export(transactions, filename):
     ws.append(["Total Income", '=SUM(B{}:B{})'.format(incomeStart, incomeEnd)])
     # append sum of both
     ws.append(["Balance", '=B{}+B{}'.format(len(cfg.outgoings_categories)+2, incomeEnd+1)])
+    # Transaction List
     ws1 = wb.create_sheet("TransactionList")
     ws1.append(['Date', 'Merchant', 'Transaction', "Category"])
     for transaction in transactions:
@@ -174,17 +197,16 @@ def excel_export(transactions, filename):
     import subprocess
     subprocess.Popen(["libreoffice", filename])
 
-def total(transactions):
-    sum = 0
-    for row in transactions:
-        sum += int(row['transaction'])
-    return sum
-
 # INIT
 t = init_monzo()
 parse_monzo(t)
-santanderTransactions = init_santander(cfg.santander_statement)
 monzoTransactions = parse_monzo(init_monzo())
+santanderTransactions = init_santander(cfg.santander_statement)
 transactions = santanderTransactions + monzoTransactions
 # PRINT
-excel_export(sort_chronologically(transactions), 'sample.xlsx')
+x = sort_months(transactions)
+for key in x:
+    print()
+    print(key)
+    print()
+    beautify(x[key])
