@@ -59,9 +59,11 @@ def write_to_csv(transactions, filename):
     with open(filename, 'w', newline='') as csvfile:
         csvwriter = csv.writer(csvfile, delimiter=';',
                                         quotechar='|', quoting=csv.QUOTE_MINIMAL)
-        csvwriter.writerow(['Date', 'Merchant', 'Transaction'])
+        csvwriter.writerow(['Date', 'Merchant', 'Transaction', 'Balance'])
+        cumulative_total = 0
         for row in transactions:
-            csvwriter.writerow([str(row['date']), row['merchant'], row['transaction']])
+            cumulative_total += int(row['transaction'])
+            csvwriter.writerow([str(row['date']), row['merchant'], row['transaction'], cumulative_total])
         csvwriter.writerow(['', 'Total', total(transactions)])
 
 def beautify(transactions):
