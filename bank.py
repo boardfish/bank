@@ -55,6 +55,14 @@ def sort_chronologically(transactions):
     new_transactions = sorted(transactions, key=lambda k: k['date']) 
     return new_transactions
 
+def write_to_csv(transactions, filename):
+    with open(filename, 'w', newline='') as csvfile:
+        csvwriter = csv.writer(csvfile, delimiter=';',
+                                        quotechar='|', quoting=csv.QUOTE_MINIMAL)
+        csvwriter.writerow(['Date', 'Merchant', 'Transaction'])
+        for row in transactions:
+            csvwriter.writerow([str(row['date']), row['merchant'], row['transaction']])
+
 def beautify(transactions):
     col_width = 40
     for row in sort_chronologically(transactions):
@@ -68,4 +76,6 @@ monzoTransactions = parse_monzo(init_monzo())
 transactions = santanderTransactions + monzoTransactions
 # PRINT
 beautify(transactions)
-
+print('Choose a filename to write to: ')
+filename = str(input(">>> "))
+write_to_csv(sort_chronologically(transactions), filename)
