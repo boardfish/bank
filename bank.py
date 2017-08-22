@@ -52,8 +52,9 @@ def init_santander(filename):
         return transactions
 
 def sort_chronologically(transactions):
-    new_transactions = sorted(transactions, key=lambda k: k['date']) 
-    return new_transactions
+    # transactions.sort(key=lambda item:item['date'])
+    transactions = sorted(transactions, key=lambda k:k['date'])
+    return transactions
 
 def to_pounds(pence):
     value = str.format('{0:.2f}',pence/100)
@@ -100,4 +101,4 @@ santanderTransactions = init_santander(cfg.santander_statement)
 monzoTransactions = parse_monzo(init_monzo())
 transactions = santanderTransactions + monzoTransactions
 # PRINT
-beautify(format_for_display(transactions))
+beautify(format_for_display(sort_chronologically(transactions)))
