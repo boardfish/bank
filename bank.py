@@ -3,6 +3,8 @@ from dateutil import parser
 import pytz
 import config as cfg
 import csv
+from openpyxl.styles import colors
+from openpyxl.styles import Font, Color
 from openpyxl import Workbook
 
 
@@ -58,8 +60,11 @@ def sort_chronologically(transactions):
     transactions = sorted(transactions, key=lambda k:k['date'])
     return transactions
 
+def to_2sf(value):
+    return float(str.format('{0:.2f}',value/100))
+
 def to_pounds(pence):
-    value = str.format('{0:.2f}',pence/100)
+    value = to_2sf(pence)
     if value[0] == '-':
         value = value[1:]
         prefix = "-£"
@@ -90,6 +95,20 @@ def beautify(transactions):
     for row in sort_chronologically(transactions):
         print("".join(str(row[key]).ljust(col_width) for key in row))
 
+def excel_autofit(ws):
+    # from https://stackoverflow.com/questions/39529662/python-automatically-adjust-width-of-an-excel-files-columns
+    for col in ws.columns:
+        max_length = 0
+        column = col[0].column # Get the column name
+        for cell in col:
+            try: # Necessary to avoid error on empty cells
+                if len(str(cell.value)) > max_length:
+                    max_length = len(cell.value)
+            except:
+                pass
+        adjusted_width = (max_length + 2) * 1.2
+        ws.column_dimensions[column].width = adjusted_width
+
 def excel_export(transactions, filename):
     wb = Workbook()
 
@@ -98,10 +117,17 @@ def excel_export(transactions, filename):
     ws.title = "Spending Summary"
 
     ws.append(["Category", "Total"])
+    header_font = Font(bold=True)
+    for row in ws.iter_rows(min_row=1, max_col=2, max_row=1):
+        for cell in row:
+            cell.font = header_font
     for category in cfg.outgoings_categories:
         ws.append([category, '=SUMPRODUCT((TransactionList!D2:D{1}="{0}")*TransactionList!C2:C{1})'.format(category, len(transactions)+20)])
     # append sum of outgoings
     ws.append(["Total Outgoings", '=SUM(B2:B{})'.format(len(cfg.outgoings_categories)+1)])
+    for row in ws.iter_rows(min_row=len(cfg.outgoings_categories)+2, max_col=1, max_row=len(cfg.outgoings_categories)+2):
+        for cell in row:
+            cell.font = header_font
     for category in cfg.income_categories:
         ws.append([category, '=SUMPRODUCT((TransactionList!D2:D{1}="{0}")*TransactionList!C2:C{1})'.format(category, len(transactions)+20)])
     # append sum of incomes
@@ -110,10 +136,18 @@ def excel_export(transactions, filename):
     ws.append(["Total Income", '=SUM(B{}:B{})'.format(incomeStart, incomeEnd)])
     # append sum of both
     ws.append(["Balance", '=B{}+B{}'.format(len(cfg.outgoings_categories)+2, incomeEnd+1)])
+    for row in ws.iter_rows(min_row=incomeEnd+1, max_col=2, max_row=incomeEnd+2):
+        for cell in row:
+            cell.font = header_font
     ws1 = wb.create_sheet("TransactionList")
     ws1.append(['Date', 'Merchant', 'Transaction', "Category"])
+    for row in ws1.iter_rows(min_row=1, max_col=4, max_row=1):
+        for cell in row:
+            cell.font = header_font
     for transaction in transactions:
-        ws1.append([transaction['date'], transaction['merchant'], transaction['transaction']])
+        ws1.append([transaction['date'], transaction['merchant'], to_2sf(transaction['transaction'])])
+    excel_autofit(ws)
+    excel_autofit(ws1)
     # Save the file
     wb.save(filename)
     print("Saved. Don't forget to check cell references - it might not be perfect.")
