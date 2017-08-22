@@ -1,5 +1,6 @@
 from monzo.monzo import Monzo # Import Monzo Class
 from dateutil import parser
+import pytz
 import config as cfg
 import csv
 
@@ -24,7 +25,7 @@ def parse_monzo(transactions):
         date = item['created']
         amount = int(item['amount'])
         transactionsParsed.append({
-            'date': parser.parse(date),
+            'date': parser.parse(date).replace(tzinfo=pytz.UTC),
             'transaction': amount,
             'merchant': merchant})
     return transactionsParsed
@@ -35,7 +36,7 @@ def init_santander(filename):
         spamreader = csv.reader(csvfile, delimiter=';')
         for row in spamreader:
             try:
-                date = parser.parse(row[0])
+                date = parser.parse(row[0]).replace(tzinfo=pytz.UTC)
                 merchant = row[2]
                 transaction = int(row[3].translate({ord(c): None for c in '£.'}))
                 # TODO: Parse to integer value of pennies
@@ -50,17 +51,21 @@ def init_santander(filename):
                 'merchant': merchant})
         return transactions
 
+def sort_chronologically(transactions):
+    new_transactions = sorted(transactions, key=lambda k: k['date']) 
+    return new_transactions
 
+def beautify(transactions):
+    col_width = 40
+    for row in sort_chronologically(transactions):
+        print("".join(str(row[key]).ljust(col_width) for key in row))
 
+# INIT
 t = init_monzo()
 parse_monzo(t)
 santanderTransactions = init_santander(cfg.santander_statement)
 monzoTransactions = parse_monzo(init_monzo())
-print("----SANTANDER-----\n")
-for transaction in santanderTransactions:
-    print(transaction)
-    print()
-print("----MONZO-----\n")
-for transaction in monzoTransactions:
-    print(transaction)
-    print()
+transactions = santanderTransactions + monzoTransactions
+# PRINT
+beautify(transactions)
+
