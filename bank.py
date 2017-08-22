@@ -62,11 +62,18 @@ def write_to_csv(transactions, filename):
         csvwriter.writerow(['Date', 'Merchant', 'Transaction'])
         for row in transactions:
             csvwriter.writerow([str(row['date']), row['merchant'], row['transaction']])
+        csvwriter.writerow(['', 'Total', total(transactions)])
 
 def beautify(transactions):
     col_width = 40
     for row in sort_chronologically(transactions):
         print("".join(str(row[key]).ljust(col_width) for key in row))
+
+def total(transactions):
+    sum = 0
+    for row in transactions:
+        sum += int(row['transaction'])
+    return sum
 
 # INIT
 t = init_monzo()
@@ -75,7 +82,8 @@ santanderTransactions = init_santander(cfg.santander_statement)
 monzoTransactions = parse_monzo(init_monzo())
 transactions = santanderTransactions + monzoTransactions
 # PRINT
-beautify(transactions)
+# beautify(transactions)
+print(total(transactions))
 print('Choose a filename to write to: ')
 filename = str(input(">>> "))
 write_to_csv(sort_chronologically(transactions), filename)

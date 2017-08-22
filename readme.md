@@ -6,6 +6,7 @@ bank is a little script I'm working on mostly for personal purposes. I'm hoping 
 
 - List your transactions in one Monzo account and one Santander account
 - Sort lists of transactions chronologically
+- Work out the total cost of all transactions in a given statement
 - Export these as CSV
 - Combine the above functions
 
