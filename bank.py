@@ -6,6 +6,7 @@ import datetime
 from openpyxl.styles import colors
 from openpyxl.styles import Font, Color, PatternFill
 from openpyxl import Workbook
+from openpyxl import load_workbook
 from dateutil import parser
 
 
@@ -37,22 +38,22 @@ def parse_monzo(transactions):
 
 def init_santander(filename):
     transactions = []
-    with open(filename, encoding='mac_roman', newline='') as csvfile:
-        spamreader = csv.reader(csvfile, delimiter=';')
-        for row in spamreader:
-            try:
-                date = datetime.datetime.strptime(row[0], "%d/%m/%Y" ).replace(tzinfo=pytz.UTC)
-                merchant = row[2]
-                transaction = int(row[3].translate({ord(c): None for c in '£.'}))
-            except IndexError:
-                continue
-            except ValueError:
-                continue
-            transactions.append({
-                'date': date,
-                'transaction': transaction,
-                'merchant': merchant})
-        return transactions
+    # open the file
+    wb = load_workbook(filename = cfg.santander_statement)
+    ws = wb.active
+    # for each row:
+    for row in ws.iter_rows(min_row = 6):
+        date = datetime.datetime.strptime(row[1].value, "%d/%m/%Y" ).replace(tzinfo=pytz.UTC)
+        merchant = row[3].value
+        if row[5].value is None:
+            transaction = -1*int(row[6].value.translate({ord(c): None for c in '£.,'}))
+        else:
+            transaction = int(row[5].value.translate({ord(c): None for c in '£.,'}))
+        transactions.append({
+            'date': date, 
+            'merchant': merchant, 
+            'transaction': transaction})
+    return transactions
 
 def sort_chronologically(transactions):
     # transactions.sort(key=lambda item:item['date'])
@@ -275,4 +276,4 @@ monzoTransactions = parse_monzo(init_monzo())
 santanderTransactions = init_santander(cfg.santander_statement)
 transactions = santanderTransactions + monzoTransactions
 # PRINT
-excel_export(sort_months(transactions))
+excel_export(sort_months(transactions), 'sample.xlsx')
