@@ -127,7 +127,7 @@ def excel_autofit(ws):
         column = col[0].column # Get the column name
         for cell in col:
             try: # Necessary to avoid error on empty cells
-                if len(str(cell.value)) > max_length:
+                if len(str(cell.value)) > max_length and str(cell.value)[0] != '=':
                     max_length = len(cell.value)
             except:
                 pass
@@ -152,6 +152,8 @@ def excel_summary_headers(ws, col, transactions):
         row_iterator+=1
     ws.cell(row = row_iterator, column = 1, value = 'Total Income')
     row_iterator+=1
+    ws.cell(row = row_iterator, column = 1, value = 'Balance')
+    row_iterator+=1
 
 def excel_summary_totals(ws, col, columns):
     row_iterator = 2
@@ -173,7 +175,7 @@ def excel_summary_column(transactions, ws, source_sheet, col):
     # append sum of outgoings
     outgoings = [row_iterator, 0]
     for category in cfg.outgoings_categories:
-        val = '=SUMPRODUCT(({2}!D2:D{1}="{0}")*{2}!C2:C{1})'.format(category, len(transactions)+20, source_sheet)
+        val = '=SUMPRODUCT(({2}!D2:D{1}="{0}")*{2}!C2:C{1})'.format(category, len(transactions)+1, source_sheet)
         ws.cell(row = row_iterator, column = col, value = val)
         row_iterator+=1
     outgoings[1] = row_iterator - 1
@@ -182,20 +184,58 @@ def excel_summary_column(transactions, ws, source_sheet, col):
     row_iterator+=1
     incomes = [row_iterator, 0]
     for category in cfg.income_categories:
-        val =  '=SUMPRODUCT(({2}!D2:D{1}="{0}")*{2}!C2:C{1})'.format(category, len(transactions)+20, source_sheet)
+        val =  '=SUMPRODUCT(({2}!D2:D{1}="{0}")*{2}!C2:C{1})'.format(category, len(transactions)+1, source_sheet)
         ws.cell(row = row_iterator, column = col, value = val)
         row_iterator+=1
     incomes[1] = row_iterator - 1
     # append sum of incomes
-    # incomeStart = len(cfg.outgoings_categories)+3
     val = '=SUM({0}{1}:{0}{2})'.format(col_letter, incomes[0], incomes[1])
     ws.cell(row = row_iterator, column = col, value = val)
     row_iterator+=1
     # append sum of both
-    val = '={0}{1}+{0}{2}'.format(col_letter, outgoings[1]+1, incomes[1])
-    ws.cell(row = row_iterator, column = col, value = val)
+    prev_col = chr(ord(col_letter)-1)
+    if prev_col == "A":
+        val = '={0}{1}+{0}{2}'.format(col_letter, outgoings[1]+1, incomes[1] )
+    else:
+        val = '={3}{4}+{0}{1}+{0}{2}'.format(col_letter, outgoings[1]+1, incomes[1], prev_col, row_iterator)
+    excel_format_currency(ws.cell(row = row_iterator, column = col, value = val))
+    # Formatting for income and balance totals
+    for row in ws.iter_rows(min_row=incomes[0], max_row=incomes[1]):
+        for cell in row:
+            cell.style = "20 % - Accent1"
+            excel_format_currency(cell)
+    for row in ws.iter_rows(min_row=incomes[1]+1, max_row=incomes[1]+1):
+        for cell in row:
+            cell.style = "60 % - Accent1"
+            excel_format_currency(cell)
+    for row in ws.iter_rows(min_row=incomes[1]+2, max_row=incomes[1]+2):
+        for cell in row:
+            cell.style = "60 % - Accent3"
+            excel_format_currency(cell)
+    # Header row of spending summary
+    for row in ws.iter_rows(min_row=1, max_row=1):
+        for cell in row:
+            cell.style = "60 % - Accent4"
+            excel_format_currency(cell)
+    # Outgoing totals
+    for row in ws.iter_rows(min_row=2, max_row=len(cfg.outgoings_categories)+1):
+        for cell in row:
+            cell.style = "20 % - Accent2"
+            excel_format_currency(cell)
+    for row in ws.iter_rows(min_row=len(cfg.outgoings_categories)+2, max_row=len(cfg.outgoings_categories)+2):
+        for cell in row:
+            cell.style = "60 % - Accent2"
+            excel_format_currency(cell)
+    excel_autofit(ws)
+
+def excel_format_currency(cell):
+    cell.number_format = '£#,##0.00' 
 
 def excel_export(transactions, filename):
+    # Formatting cells
+    # Basic styles
+    header_font = Font(bold=True)
+    # init
     wb = Workbook()
     # grab the active worksheet
     # Spending Summary
@@ -213,44 +253,17 @@ def excel_export(transactions, filename):
         ws1.append(['Date', 'Merchant', 'Transaction', "Category"])
         for transaction in monthStatement:
             ws1.append([transaction['date'], transaction['merchant'], to_2sf(transaction['transaction'])])
+        for row in ws1.iter_rows(min_row=2, max_col=3):
+            for cell in row:
+                excel_format_currency(cell)
+        # Coloring header row of transaction list
+        for row in ws1.iter_rows(min_row=1, max_col=4, max_row=1):
+            for cell in row:
+                cell.font = header_font
+                cell.style = "60 % - Accent1"
+        excel_autofit(ws1)
     print("summary_column:", summary_column)
     excel_summary_totals(ws, summary_column, len(transactions.keys()))
-    '''
-    # Formatting cells
-    # Basic styles
-    header_font = Font(bold=True)
-    redFill = PatternFill(start_color='FFFF0000',
-                          end_color='FFFF0000',
-                          fill_type='solid')
-    # Header row of spending summary
-    for row in ws.iter_rows(min_row=1, max_col=2, max_row=1):
-        for cell in row:
-            cell.style = "60 % - Accent4"
-    # Outgoing totals
-    for row in ws.iter_rows(min_row=2, max_col=2, max_row=len(cfg.outgoings_categories)+1):
-        for cell in row:
-            cell.style = "20 % - Accent2"
-    for row in ws.iter_rows(min_row=len(cfg.outgoings_categories)+2, max_col=2, max_row=len(cfg.outgoings_categories)+2):
-        for cell in row:
-            cell.style = "60 % - Accent2"
-    # Income and balance totals
-    for row in ws.iter_rows(min_row=incomes[0], max_col=2, max_row=incomes[1]):
-        for cell in row:
-            cell.style = "20 % - Accent1"
-    for row in ws.iter_rows(min_row=incomeEnd+1, max_col=2, max_row=incomeEnd+1):
-        for cell in row:
-            cell.style = "60 % - Accent1"
-    for row in ws.iter_rows(min_row=incomeEnd+2, max_col=2, max_row=incomeEnd+2):
-        for cell in row:
-            cell.style = "60 % - Accent3"
-    # Header row of transaction list
-    for row in ws1.iter_rows(min_row=1, max_col=4, max_row=1):
-        for cell in row:
-            cell.font = header_font
-            cell.style = "60 % - Accent1"
-    '''
-    excel_autofit(ws)
-    excel_autofit(ws1)
     # Save the file
     wb.save(filename)
     print("Saved. Don't forget to check cell references - it might not be perfect.")
