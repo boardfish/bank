@@ -1,5 +1,4 @@
-from monzo.monzo import Monzo # Import Monzo Class
-from dateutil import parser
+from monzo.monzo import Monzo # Import Monzo Class from dateutil import parser
 import pytz
 import config as cfg
 import csv
@@ -7,6 +6,7 @@ import datetime
 from openpyxl.styles import colors
 from openpyxl.styles import Font, Color, PatternFill
 from openpyxl import Workbook
+from dateutil import parser
 
 
 def init_monzo():
@@ -44,8 +44,6 @@ def init_santander(filename):
                 date = datetime.datetime.strptime(row[0], "%d/%m/%Y" ).replace(tzinfo=pytz.UTC)
                 merchant = row[2]
                 transaction = int(row[3].translate({ord(c): None for c in '£.'}))
-                # TODO: Parse to integer value of pennies
-                # TODO: Config file
             except IndexError:
                 continue
             except ValueError:
@@ -277,4 +275,4 @@ monzoTransactions = parse_monzo(init_monzo())
 santanderTransactions = init_santander(cfg.santander_statement)
 transactions = santanderTransactions + monzoTransactions
 # PRINT
-excel_export(sort_months(santanderTransactions), "sample.xlsx")
+excel_export(sort_months(transactions))
