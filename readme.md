@@ -30,9 +30,11 @@ for month, transactions in sort_months(transactions).items():
 
 I'd like it to recognise regular merchants and assume the transaction category, like Monzo does, but that would require extending their method of choosing tags in a major way for it to be intelligent at all. From then, it'd be hard to automate it any further.
 
+## Usage
+
 Define the following variables in config.py:
 
-- santander_statement: the location of the file containing your Santander statement, exported as a Midata CSV. Currently no API is exposed, meaning fetching the CSV needs to be done manually.
+- santander_statement: the location of the file containing your Santander statement, exported as an XLS file. Save this in the newer XLSX format and use that instead. Currently no API is exposed, meaning fetching the CSV needs to be done manually.
 - monzo_token: your access token for Monzo. You'll need to fetch this every time from https://developers.monzo.com.
 - outgoings_categories: a list of names of categories in which you spend your money, such as food, transport, etc.
 - income_categories: a list of names of categories in which you receive money, such as wages, student loan, etc.
