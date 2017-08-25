@@ -252,7 +252,7 @@ def excel_export(transactions, filename):
         ws1.append(['Date', 'Merchant', 'Transaction', "Category"])
         for transaction in monthStatement:
             ws1.append([transaction['date'], transaction['merchant'], to_2sf(transaction['transaction'])])
-        for row in ws1.iter_rows(min_row=2, max_col=3):
+        for row in ws1.iter_rows(min_row=2, min_col=3, max_col=3):
             for cell in row:
                 excel_format_currency(cell)
         # Coloring header row of transaction list
