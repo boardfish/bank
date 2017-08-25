@@ -62,10 +62,11 @@ def sort_chronologically(transactions):
     return transactions
 
 def sort_months(transactions):
+    # Store the dates in stored_transactions with Y/M dates
     sorted_transactions = {}
     for transaction in transactions:
         # Make a list of months
-        month = str(transaction['date'].month) + '-' + str(transaction['date'].year)
+        month = transaction['date'].strftime("%y/%m")
         if month in sorted_transactions:
             sorted_transactions[month].append(transaction)
         else:
@@ -133,30 +134,88 @@ def excel_autofit(ws):
         adjusted_width = (max_length + 2) * 1.2
         ws.column_dimensions[column].width = adjusted_width
 
+def excel_summary_headers(ws, col, transactions):
+    row_iterator = 1
+    header_row = ["Category"]
+    for key in sorted(transactions):
+        header_row.append(key)
+    ws.append(header_row)
+    row_iterator += 1
+    # Row titles
+    for category in cfg.outgoings_categories:
+        ws.cell(row = row_iterator, column = 1, value = category)
+        row_iterator+=1
+    ws.cell(row = row_iterator, column = 1, value = 'Total Outgoings')
+    row_iterator+=1
+    for category in cfg.income_categories:
+        ws.cell(row = row_iterator, column = 1, value = category)
+        row_iterator+=1
+    ws.cell(row = row_iterator, column = 1, value = 'Total Income')
+    row_iterator+=1
+
+def excel_summary_totals(ws, col, columns):
+    row_iterator = 2
+    ws.cell(row = row_iterator, column = 1, value = 'Total')
+    # Row titles
+    summary = [
+            'B',
+            chr(columns + ord('A'))
+            ]
+    for x in range (0, len(cfg.outgoings_categories)+len(cfg.income_categories)+3):
+        val = '=SUM({1}{0}:{2}{0})'.format(row_iterator, summary[0], summary[1])
+        ws.cell(row = row_iterator, column = col, value = val)
+        row_iterator+=1
+    val = '=SUM({1}2:{1}{0})'.format(row_iterator-1, chr(ord('A') - 1 + col))
+
+def excel_summary_column(transactions, ws, source_sheet, col):
+    row_iterator = 2 #leave header row
+    col_letter = chr(col + ord('A') -1) #should return e.g. 'B' for input of 2
+    # append sum of outgoings
+    outgoings = [row_iterator, 0]
+    for category in cfg.outgoings_categories:
+        val = '=SUMPRODUCT(({2}!D2:D{1}="{0}")*{2}!C2:C{1})'.format(category, len(transactions)+20, source_sheet)
+        ws.cell(row = row_iterator, column = col, value = val)
+        row_iterator+=1
+    outgoings[1] = row_iterator - 1
+    val = '=SUM({0}{1}:{0}{2})'.format(col_letter, outgoings[0], outgoings[1])
+    ws.cell(row = row_iterator, column = col, value = val)
+    row_iterator+=1
+    incomes = [row_iterator, 0]
+    for category in cfg.income_categories:
+        val =  '=SUMPRODUCT(({2}!D2:D{1}="{0}")*{2}!C2:C{1})'.format(category, len(transactions)+20, source_sheet)
+        ws.cell(row = row_iterator, column = col, value = val)
+        row_iterator+=1
+    incomes[1] = row_iterator - 1
+    # append sum of incomes
+    # incomeStart = len(cfg.outgoings_categories)+3
+    val = '=SUM({0}{1}:{0}{2})'.format(col_letter, incomes[0], incomes[1])
+    ws.cell(row = row_iterator, column = col, value = val)
+    row_iterator+=1
+    # append sum of both
+    val = '={0}{1}+{0}{2}'.format(col_letter, outgoings[1]+1, incomes[1])
+    ws.cell(row = row_iterator, column = col, value = val)
+
 def excel_export(transactions, filename):
     wb = Workbook()
     # grab the active worksheet
-    ws = wb.active
     # Spending Summary
+    ws = wb.active
     ws.title = "Spending Summary"
-    ws.append(["Category", "Total"])
-    for category in cfg.outgoings_categories:
-        ws.append([category, '=SUMPRODUCT((TransactionList!D2:D{1}="{0}")*TransactionList!C2:C{1})'.format(category, len(transactions)+20)])
-    # append sum of outgoings
-    ws.append(["Total Outgoings", '=SUM(B2:B{})'.format(len(cfg.outgoings_categories)+1)])
-    for category in cfg.income_categories:
-        ws.append([category, '=SUMPRODUCT((TransactionList!D2:D{1}="{0}")*TransactionList!C2:C{1})'.format(category, len(transactions)+20)])
-    # append sum of incomes
-    incomeStart = len(cfg.outgoings_categories)+3
-    incomeEnd = incomeStart + len(cfg.income_categories) - 1
-    ws.append(["Total Income", '=SUM(B{}:B{})'.format(incomeStart, incomeEnd)])
-    # append sum of both
-    ws.append(["Balance", '=B{}+B{}'.format(len(cfg.outgoings_categories)+2, incomeEnd+1)])
+    excel_summary_headers(ws, 1, transactions)
+    summary_column = 2
+    for key in sorted(transactions):
+        monthStatement = transactions[key]
+        newkey = datetime.datetime.strptime(key, "%y/%m").strftime("%B%y")
+        excel_summary_column(monthStatement, ws, newkey, summary_column)
+        summary_column += 1
     # Transaction List
-    ws1 = wb.create_sheet("TransactionList")
-    ws1.append(['Date', 'Merchant', 'Transaction', "Category"])
-    for transaction in transactions:
-        ws1.append([transaction['date'], transaction['merchant'], to_2sf(transaction['transaction'])])
+        ws1 = wb.create_sheet(newkey)
+        ws1.append(['Date', 'Merchant', 'Transaction', "Category"])
+        for transaction in monthStatement:
+            ws1.append([transaction['date'], transaction['merchant'], to_2sf(transaction['transaction'])])
+    print("summary_column:", summary_column)
+    excel_summary_totals(ws, summary_column, len(transactions.keys()))
+    '''
     # Formatting cells
     # Basic styles
     header_font = Font(bold=True)
@@ -175,7 +234,7 @@ def excel_export(transactions, filename):
         for cell in row:
             cell.style = "60 % - Accent2"
     # Income and balance totals
-    for row in ws.iter_rows(min_row=incomeStart, max_col=2, max_row=incomeEnd):
+    for row in ws.iter_rows(min_row=incomes[0], max_col=2, max_row=incomes[1]):
         for cell in row:
             cell.style = "20 % - Accent1"
     for row in ws.iter_rows(min_row=incomeEnd+1, max_col=2, max_row=incomeEnd+1):
@@ -189,6 +248,7 @@ def excel_export(transactions, filename):
         for cell in row:
             cell.font = header_font
             cell.style = "60 % - Accent1"
+    '''
     excel_autofit(ws)
     excel_autofit(ws1)
     # Save the file
@@ -204,9 +264,4 @@ monzoTransactions = parse_monzo(init_monzo())
 santanderTransactions = init_santander(cfg.santander_statement)
 transactions = santanderTransactions + monzoTransactions
 # PRINT
-x = sort_months(transactions)
-for key in x:
-    print()
-    print(key)
-    print()
-    beautify(x[key])
+excel_export(sort_months(santanderTransactions), "sample.xlsx")
