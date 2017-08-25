@@ -26,7 +26,7 @@ Note that `excel_export` **requires** `sort_months`-formatted data, but everythi
 for month, transactions in sort_months(transactions).items():
     print(month)
     beautify(transactions)
-
+```
 
 I'd like it to recognise regular merchants and assume the transaction category, like Monzo does, but that would require extending their method of choosing tags in a major way for it to be intelligent at all. From then, it'd be hard to automate it any further.
 
