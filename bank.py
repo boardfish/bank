@@ -1,7 +1,7 @@
 from pymonzo import MonzoAPI  # Import Monzo Class
 from dateutil import parser
 import pytz
-# import config as cfg
+import config as cfg
 import csv
 import datetime
 from openpyxl.styles import colors
@@ -11,15 +11,23 @@ from openpyxl import load_workbook
 from dateutil import parser
 
 
-def init_monzo():
+# Retrieves the list of transactions from Monzo, optionally with merchants.
+def init_monzo(merchants=False):
     client = MonzoAPI()
     # Get the ID of the first account linked to the access token
     account_id = client.accounts()[1].id
+    print("[Monzo] Retrieving transactions...")
     transactions = client.transactions(
         account_id)  # Get client.transaction(
+    print("[Monzo] Retrieving merchants...")
     for item in transactions:
-        item.merchant = client.transaction(
-            item.id, expand_merchant=True).merchant
+        identifier = item.merchant
+        if merchants:
+            item.merchant = client.transaction(
+                item.id, expand_merchant=False).merchant
+            identifier = item.merchant.name
+        print("[Monzo] Retrieved merchant {}.".format(identifier))
+    print("Done.")
     return transactions
 
 
@@ -43,29 +51,6 @@ def parse_monzo(transactions):
     return transactionsParsed
 
 
-def init_santander(filename):
-    transactions = []
-    # open the file
-    wb = load_workbook(filename=cfg.santander_statement)
-    ws = wb.active
-    # for each row:
-    for row in ws.iter_rows(min_row=6):
-        date = datetime.datetime.strptime(
-            row[1].value, "%d/%m/%Y").replace(tzinfo=pytz.UTC)
-        merchant = row[3].value
-        if row[5].value is None:
-            transaction = -1 * \
-                int(row[6].value.translate({ord(c): None for c in '£.,'}))
-        else:
-            transaction = int(row[5].value.translate(
-                {ord(c): None for c in '£.,'}))
-        transactions.append({
-            'date': date,
-            'merchant': merchant,
-            'transaction': transaction})
-    return transactions
-
-
 def sort_chronologically(transactions):
     # transactions.sort(key=lambda item:item['date'])
     transactions = sorted(transactions, key=lambda k: k['date'])
@@ -82,14 +67,14 @@ def sort_months(transactions):
             sorted_transactions[month].append(transaction)
         else:
             sorted_transactions[month] = [transaction]
-    return sorted_transactions
-
-
-def total(transactions):
-    sum = 0
-    for row in transactions:
-        sum += int(row['transaction'])
-    return sum
+    print("sorted")
+    ordered_transactions = {}
+    for key in sorted(sorted_transactions.keys()):
+        print(key)
+        ordered_transactions[key] = sorted_transactions[key]
+    print("sorted")
+    print(ordered_transactions)
+    return ordered_transactions
 
 # Formatting and displaying
 
@@ -128,7 +113,6 @@ def write_to_csv(transactions, filename):
             cumulative_total += int(row['transaction'])
             csvwriter.writerow(
                 [str(row['date']), row['merchant'], row['transaction'], cumulative_total])
-        csvwriter.writerow(['', 'Total', total(transactions)])
 
 
 def beautify(transactions):
@@ -156,13 +140,14 @@ def excel_autofit(ws):
 
 def excel_summary_headers(ws, col, transactions):
     row_iterator = 1
-    header_row = ["Category"]
-    for key in sorted(transactions):
-        header_row.append(key)
-    ws.append(header_row)
+    # for key in transactions:
+    #    print("Key: {}".format(key))
+    #     header_row.append(key)
+    # ws.append(header_row)
+    ws.cell(row=row_iterator, column=1, value="Category")
     row_iterator += 1
     # Row titles
-    for category in cfg.outgoings_categories:
+    for category in cfg.outgoing_categories:
         ws.cell(row=row_iterator, column=1, value=category)
         row_iterator += 1
     ws.cell(row=row_iterator, column=1, value='Total Outgoings')
@@ -184,7 +169,7 @@ def excel_summary_totals(ws, col, columns):
         'B',
         chr(columns + ord('A'))
     ]
-    for x in range(0, len(cfg.outgoings_categories)+len(cfg.income_categories)+3):
+    for x in range(0, len(cfg.outgoing_categories)+len(cfg.income_categories)+3):
         val = '=SUM({1}{0}:{2}{0})'.format(
             row_iterator, summary[0], summary[1])
         ws.cell(row=row_iterator, column=col, value=val)
@@ -198,7 +183,7 @@ def excel_summary_column(transactions, ws, source_sheet, col):
     col_letter = chr(col + ord('A') - 1)
     # append sum of outgoings
     outgoings = [row_iterator, 0]
-    for category in cfg.outgoings_categories:
+    for category in cfg.outgoing_categories:
         val = '=SUMPRODUCT(({2}!D2:D{1}="{0}")*{2}!C2:C{1})'.format(
             category, len(transactions)+1, source_sheet)
         ws.cell(row=row_iterator, column=col, value=val)
@@ -245,11 +230,11 @@ def excel_summary_column(transactions, ws, source_sheet, col):
             cell.style = "60 % - Accent4"
             excel_format_currency(cell)
     # Outgoing totals
-    for row in ws.iter_rows(min_row=2, max_row=len(cfg.outgoings_categories)+1):
+    for row in ws.iter_rows(min_row=2, max_row=len(cfg.outgoing_categories)+1):
         for cell in row:
             cell.style = "20 % - Accent2"
             excel_format_currency(cell)
-    for row in ws.iter_rows(min_row=len(cfg.outgoings_categories)+2, max_row=len(cfg.outgoings_categories)+2):
+    for row in ws.iter_rows(min_row=len(cfg.outgoing_categories)+2, max_row=len(cfg.outgoing_categories)+2):
         for cell in row:
             cell.style = "60 % - Accent2"
             excel_format_currency(cell)
@@ -272,9 +257,9 @@ def excel_export(transactions, filename):
     ws.title = "Spending Summary"
     excel_summary_headers(ws, 1, transactions)
     summary_column = 2
-    for key in sorted(transactions):
-        monthStatement = transactions[key]
-        newkey = datetime.datetime.strptime(key, "%y/%m").strftime("%B%y")
+    sorted_transactions = sort_months(transactions)
+    for month, monthStatement in sorted_transactions.items():
+        newkey = datetime.datetime.strptime(month, "%y/%m").strftime("%B%y")
         excel_summary_column(monthStatement, ws, newkey, summary_column)
         summary_column += 1
     # Transaction List
@@ -293,7 +278,7 @@ def excel_export(transactions, filename):
                 cell.style = "60 % - Accent1"
         excel_autofit(ws1)
     print("summary_column:", summary_column)
-    excel_summary_totals(ws, summary_column, len(transactions.keys()))
+    excel_summary_totals(ws, summary_column, len(sorted_transactions.keys()))
     # Save the file
     wb.save(filename)
     print("Saved. Don't forget to check cell references - it might not be perfect.")
@@ -302,8 +287,10 @@ def excel_export(transactions, filename):
 
 
 # INIT
+print("Fetching data from Monzo...")
 t = init_monzo()
-write_to_csv(parse_monzo(t), "monzo.csv")
+print("Exporting to Excel...")
+excel_export(parse_monzo(t), "monzo.xlsx")
 # monzoTransactions = parse_monzo(init_monzo())
 # santanderTransactions = init_santander(cfg.santander_statement)
 # transactions = santanderTransactions + monzoTransactions
