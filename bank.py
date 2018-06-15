@@ -12,7 +12,7 @@ from dateutil import parser
 
 
 # Retrieves the list of transactions from Monzo, optionally with merchants.
-def init_monzo(merchants=False):
+def init_monzo(merchants=True):
     client = MonzoAPI()
     # Get the ID of the first account linked to the access token
     account_id = client.accounts()[1].id
@@ -21,11 +21,11 @@ def init_monzo(merchants=False):
         account_id)  # Get client.transaction(
     print("[Monzo] Retrieving merchants...")
     for item in transactions:
-        identifier = item.merchant
         if merchants:
             item.merchant = client.transaction(
-                item.id, expand_merchant=False).merchant
-            identifier = item.merchant.name
+                item.id, expand_merchant=True).merchant
+        identifier = item.merchant.name if hasattr(
+            item.merchant, 'name') else item.merchant
         print("[Monzo] Retrieved merchant {}.".format(identifier))
     print("Done.")
     return transactions
@@ -38,15 +38,17 @@ def parse_monzo(transactions):
         try:
             merchant = item.merchant.name
         except AttributeError:
-            merchant = "No name"
+            merchant = item.description
         except TypeError:
-            merchant = "No merchant for this item"
+            merchant = item.description
         # Date
         date = item.created
+        notes = item.notes
         amount = int(item.amount)
         transactionsParsed.append({
             'date': date,
             'transaction': amount,
+            'notes': notes,
             'merchant': merchant})
     return transactionsParsed
 
@@ -67,13 +69,9 @@ def sort_months(transactions):
             sorted_transactions[month].append(transaction)
         else:
             sorted_transactions[month] = [transaction]
-    print("sorted")
     ordered_transactions = {}
     for key in sorted(sorted_transactions.keys()):
-        print(key)
         ordered_transactions[key] = sorted_transactions[key]
-    print("sorted")
-    print(ordered_transactions)
     return ordered_transactions
 
 # Formatting and displaying
@@ -184,8 +182,8 @@ def excel_summary_column(transactions, ws, source_sheet, col):
     # append sum of outgoings
     outgoings = [row_iterator, 0]
     for category in cfg.outgoing_categories:
-        val = '=SUMPRODUCT(({2}!D2:D{1}="{0}")*{2}!C2:C{1})'.format(
-            category, len(transactions)+1, source_sheet)
+        val = '=SUMPRODUCT(({2}!$D$2:$D${1}=$A{3})*{2}!$C$2:$C${1})'.format(
+            category, len(transactions)+1, source_sheet, row_iterator)
         ws.cell(row=row_iterator, column=col, value=val)
         row_iterator += 1
     outgoings[1] = row_iterator - 1
@@ -194,8 +192,8 @@ def excel_summary_column(transactions, ws, source_sheet, col):
     row_iterator += 1
     incomes = [row_iterator, 0]
     for category in cfg.income_categories:
-        val = '=SUMPRODUCT(({2}!D2:D{1}="{0}")*{2}!C2:C{1})'.format(
-            category, len(transactions)+1, source_sheet)
+        val = '=SUMPRODUCT(({2}!$D$2:$D${1}=$A{3})*{2}!$C$2:$C${1})'.format(
+            category, len(transactions)+1, source_sheet, row_iterator)
         ws.cell(row=row_iterator, column=col, value=val)
         row_iterator += 1
     incomes[1] = row_iterator - 1
@@ -206,7 +204,7 @@ def excel_summary_column(transactions, ws, source_sheet, col):
     # append sum of both
     prev_col = chr(ord(col_letter)-1)
     if prev_col == "A":
-        val = '={0}{1}+{0}{2}'.format(col_letter, outgoings[1]+1, incomes[1])
+        val = '={0}{1}+{0}{2}'.format(col_letter, outgoings[1]+1, incomes[1]+1)
     else:
         val = '={3}{4}+{0}{1}+{0}{2}'.format(col_letter,
                                              outgoings[1]+1, incomes[1], prev_col, row_iterator)
@@ -228,7 +226,7 @@ def excel_summary_column(transactions, ws, source_sheet, col):
     for row in ws.iter_rows(min_row=1, max_row=1):
         for cell in row:
             cell.style = "60 % - Accent4"
-            excel_format_currency(cell)
+            # excel_format_currency(cell)
     # Outgoing totals
     for row in ws.iter_rows(min_row=2, max_row=len(cfg.outgoing_categories)+1):
         for cell in row:
@@ -264,10 +262,10 @@ def excel_export(transactions, filename):
         summary_column += 1
     # Transaction List
         ws1 = wb.create_sheet(newkey)
-        ws1.append(['Date', 'Merchant', 'Transaction', "Category"])
+        ws1.append(['Date', 'Merchant', 'Transaction', "Category", "Notes"])
         for transaction in monthStatement:
             ws1.append([transaction['date'], transaction['merchant'],
-                        to_2sf(transaction['transaction'])])
+                        to_2sf(transaction['transaction']), transaction['notes']])
         for row in ws1.iter_rows(min_row=2, min_col=3, max_col=3):
             for cell in row:
                 excel_format_currency(cell)
