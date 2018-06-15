@@ -1,1 +1,4 @@
 config.py
+monzo.xlsx
+monzo.csv
+__pycache__/
